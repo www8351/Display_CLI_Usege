@@ -51,10 +51,19 @@ test('--dump-input writes payload', () => {
 });
 
 test('stale cache does not block render', () => {
+  // A stale cache plus a fresh lock keeps spawnRefresh a no-op, so no real
+  // refresh (and no Keychain or network access) ever starts from the suite.
+  const cacheFile = path.join(tmp, 'quota-line-cache.json');
+  const usage = fs.readFileSync(path.join(__dirname, 'fixtures', 'usage-limits.json'), 'utf8');
+  fs.writeFileSync(cacheFile, usage);
+  const old = new Date(Date.now() - 400 * 1000);
+  fs.utimesSync(cacheFile, old, old);
+  fs.writeFileSync(path.join(tmp, 'quota-line-refresh.lock'), '1');
   const t0 = Date.now();
   const r = run([], full);
   assert.equal(r.status, 0);
   assert.ok(Date.now() - t0 < 2000);
+  assert.equal(fs.readFileSync(cacheFile, 'utf8'), usage);
 });
 
 test('warm render is fast', (t) => {
