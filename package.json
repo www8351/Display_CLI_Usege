@@ -1,0 +1,1 @@
+{ "name": "claude-quota-line", "version": "2.0.0", "private": true, "license": "MIT", "engines": { "node": ">=18" }, "scripts": { "test": "node --test" } }
