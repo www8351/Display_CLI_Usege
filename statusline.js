@@ -52,7 +52,7 @@ const FLAGS = {
 function parseArgs(argv) {
   const opts = Object.assign({}, DEFAULTS);
   for (let i = 0; i < argv.length; i++) {
-    const spec = FLAGS[argv[i]];
+    const spec = Object.hasOwn(FLAGS, argv[i]) ? FLAGS[argv[i]] : undefined;
     if (!spec) continue;
     const [key, kind] = spec;
     if (kind === 'bool') opts[key] = true;

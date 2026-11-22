@@ -42,3 +42,6 @@ test('ansi helpers', () => {
   assert.equal(stripAnsi(truncateVisible('abcdef', 5, true)), 'ab...');
   assert.equal(truncateVisible('abc', 5, false), 'abc');
 });
+test('parseArgs ignores unknown tokens including Object.prototype names', () => {
+  assert.deepEqual(parseArgs(['constructor', 'toString', '--unknown', 'x', '__proto__']), DEFAULTS);
+});
