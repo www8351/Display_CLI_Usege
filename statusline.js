@@ -792,6 +792,100 @@ module.exports = {
   buildLines,
 };
 
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+const PLACEHOLDER_TEXT = 'quota: waiting for first response';
+const LAST_INPUT_FILE = 'quota-line-last-input.json';
+
+function placeholder() {
+  return colorDepth(process.env) === 'none' ? PLACEHOLDER_TEXT : `\x1b[90m${PLACEHOLDER_TEXT}\x1b[0m`;
+}
+
+function dumpInput(input) {
+  try {
+    const dir = configDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, LAST_INPUT_FILE), input);
+  } catch {
+    // diagnostics only
+  }
+}
+
+function needsApi(payload, opts) {
+  if (opts.modelKey) return true;
+  const rl = payload && payload.rate_limits;
+  return !(rl && rl.five_hour && rl.seven_day);
+}
+
+async function main(argv, input) {
+  try {
+    const opts = parseArgs(argv);
+    const raw = typeof input === 'string' ? input : '';
+    if (opts.dumpInput) dumpInput(raw);
+
+    let payload = null;
+    try {
+      payload = parseJsonText(raw);
+    } catch {
+      payload = null;
+    }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) payload = null;
+    if (!payload) return [placeholder()];
+
+    let usage = null;
+    if (needsApi(payload, opts)) {
+      const cache = readCache(configDir(), opts.refreshSeconds, Date.now());
+      usage = cache.data;
+      if (cache.stale) spawnRefresh(opts);
+    }
+
+    const data = collect(payload, usage, opts);
+    const lines = buildLines(data, opts, detectWidth(opts), {
+      depth: colorDepth(process.env),
+      now: new Date(),
+    });
+    return lines.length > 0 ? lines : [placeholder()];
+  } catch {
+    return [placeholder()];
+  }
+}
+
+function readStdin() {
+  return new Promise((resolve) => {
+    if (process.stdin.isTTY) {
+      resolve('');
+      return;
+    }
+    const chunks = [];
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (c) => chunks.push(c));
+    process.stdin.on('end', () => resolve(chunks.join('')));
+    process.stdin.on('error', () => resolve(chunks.join('')));
+  });
+}
+
+async function entry() {
+  const argv = process.argv.slice(2);
+  process.exitCode = 0;
+  if (argv.includes('--refresh')) {
+    try {
+      await runRefresh(configDir());
+    } catch {
+      // detached, nothing to report
+    }
+    return;
+  }
+  const input = await readStdin();
+  const lines = await main(argv, input);
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+module.exports.main = main;
+
 if (require.main === module) {
-  // main() arrives in a later task.
+  entry().catch(() => {
+    process.exitCode = 0;
+  });
 }
