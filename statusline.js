@@ -492,6 +492,260 @@ async function runRefresh(dir, deps = { getToken, fetchUsage }) {
 }
 
 // ---------------------------------------------------------------------------
+// Layout: width, icons, themes, line building
+// ---------------------------------------------------------------------------
+
+// Every glyph is a single terminal column so visibleLength stays accurate.
+const ICONS = {
+  unicode: {
+    ctx: '◔', fiveHour: '◷', week: '▦', model: '◆',
+    modelName: '✦', folder: '⌂', branch: '⎇', cost: '$',
+  },
+  nerd: {
+    ctx: '', fiveHour: '', week: '', model: '',
+    modelName: '', folder: '', branch: '', cost: '',
+  },
+  none: {
+    ctx: '', fiveHour: '', week: '', model: '',
+    modelName: '', folder: '', branch: '', cost: '',
+  },
+};
+
+const RESET_WIDTH = 11;
+const FOLDER_MIN = 8;
+
+function positiveInt(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// Columns of the controlling terminal. The fd is always closed: by the
+// stream when one was created, otherwise directly.
+function ttyColumns() {
+  let fd = null;
+  let ws = null;
+  try {
+    fd = fs.openSync(process.platform === 'win32' ? 'CONOUT$' : '/dev/tty', 'w');
+    ws = new (require('node:tty').WriteStream)(fd);
+    return ws.columns;
+  } finally {
+    if (ws) {
+      try {
+        ws.destroy();
+      } catch {
+        // ignore
+      }
+    } else if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
+function detectWidth(opts, env = process.env, readTty = ttyColumns) {
+  const candidates = [
+    () => opts.width,
+    () => process.stdout.columns,
+    () => process.stderr.columns,
+    () => env.COLUMNS,
+    readTty,
+  ];
+  for (const get of candidates) {
+    try {
+      const n = positiveInt(get());
+      if (n !== null) return n;
+    } catch {
+      // try the next candidate
+    }
+  }
+  return null;
+}
+
+// Cut to max visible chars without an ellipsis, keeping escapes intact.
+function cutVisible(s, max) {
+  let out = '';
+  let count = 0;
+  let i = 0;
+  while (i < s.length && count < max) {
+    ANSI_RE.lastIndex = i;
+    const m = ANSI_RE.exec(s);
+    if (m && m.index === i) {
+      out += m[0];
+      i += m[0].length;
+    } else {
+      out += s[i];
+      count++;
+      i++;
+    }
+  }
+  return out + (out.includes('\x1b[') ? '\x1b[0m' : '');
+}
+
+function fitLine(s, max, ascii) {
+  if (visibleLength(s) <= max) return s;
+  const ell = ascii ? '...' : '…';
+  return max >= ell.length ? truncateVisible(s, max, ascii) : cutVisible(s, max);
+}
+
+// Fixed parts of a render that do not change between shortening steps.
+function layoutEnv(opts, ctx) {
+  const ascii = !!opts.ascii;
+  const depth = opts.theme === 'mono' ? 'none' : (ctx.depth || 'none');
+  const plain = depth === 'none';
+  const icons = ascii ? ICONS.none : (Object.hasOwn(ICONS, opts.icons) ? ICONS[opts.icons] : ICONS.unicode);
+  const dim = plain ? '' : '\x1b[90m';
+  const reset = plain ? '' : '\x1b[0m';
+  return {
+    opts,
+    ascii,
+    depth,
+    icons,
+    now: ctx.now || new Date(),
+    bold: plain ? '' : '\x1b[1m',
+    dim,
+    reset,
+    sep: ` ${dim}${ascii ? '|' : '│'}${reset} `,
+  };
+}
+
+function cellLabels(env, minimal) {
+  const { opts, icons } = env;
+  if (!minimal) {
+    return { ctx: opts.ctxLabel, fiveHour: opts.fiveHourLabel, week: opts.weekLabel, model: opts.modelLabel };
+  }
+  return {
+    ctx: icons.ctx || 'Ctx',
+    fiveHour: icons.fiveHour || '5h',
+    week: icons.week || 'Wk',
+    model: icons.model || opts.modelLabel,
+  };
+}
+
+function barCell(env, st, key, pct, resetsAt, weekly) {
+  const { opts, icons, bold, dim, reset } = env;
+  const labels = cellLabels(env, st.minimal);
+  const labelWidth = Math.max(...Object.values(labels).map((l) => String(l).length));
+  const icon = st.minimal || !icons[key] ? '' : icons[key] + ' ';
+  const labelText = String(labels[key]);
+  const label = `${icon}${bold}${labelText}${reset}${' '.repeat(labelWidth - labelText.length)}`;
+
+  const want = st.minimal ? Math.min(opts.barWidth, 5) : opts.barWidth;
+  const width = Math.max(1, Math.floor(want) || 1);
+  const bar = renderBar(pct, width, env.ascii);
+  const color = pctColor(pct, env.depth);
+  const filled = bar.full + bar.partial;
+  const barText = (filled ? `${color}${filled}${reset}` : '') + (bar.empty ? `${dim}${bar.empty}${reset}` : '');
+  const pctText = `${color}${`${Math.round(pct)}%`.padStart(4)}${reset}`;
+
+  let cell = `${label} ${barText} ${pctText}`;
+  if (!st.dropReset) {
+    const when = resetLabel(resetsAt, weekly, env.now);
+    const text = when ? `${env.ascii ? '~' : '↻'} ${when}` : '';
+    cell += ' ' + (text ? `${dim}${text}${reset}` : '') + ' '.repeat(Math.max(0, RESET_WIDTH - text.length));
+  }
+  return cell;
+}
+
+function folderSegment(env, name, branch) {
+  const { icons } = env;
+  const icon = icons.folder ? icons.folder + ' ' : '';
+  if (!branch) return icon + name;
+  return icons.branch ? `${icon}${name} ${icons.branch} ${branch}` : `${icon}${name} (${branch})`;
+}
+
+// One render of the layout state. Returns unpadded, untruncated lines.
+function renderState(data, env, st, avail) {
+  const { icons } = env;
+  const cells = {
+    ctx: typeof data.ctx === 'number' ? barCell(env, st, 'ctx', data.ctx, null, false) : null,
+    fiveHour: data.fiveHour ? barCell(env, st, 'fiveHour', data.fiveHour.pct, data.fiveHour.resetsAt, false) : null,
+    week: data.week ? barCell(env, st, 'week', data.week.pct, data.week.resetsAt, true) : null,
+    model: data.model ? barCell(env, st, 'model', data.model.pct, data.model.resetsAt, true) : null,
+  };
+  let modelName = null;
+  if (data.modelName) {
+    const name = st.shortModel ? shortModelName(data.modelName) : String(data.modelName);
+    modelName = (icons.modelName ? icons.modelName + ' ' : '') + name;
+  }
+  let cost = null;
+  if (typeof data.cost === 'number' && Number.isFinite(data.cost)) {
+    cost = icons.cost ? icons.cost + formatCost(data.cost).slice(1) : formatCost(data.cost);
+  }
+  const FOLDER = data.folder ? {} : null; // placeholder, filled per line below
+
+  const rows = st.mode === 'two'
+    ? [[cells.ctx, cells.fiveHour, modelName, cost], [cells.week, cells.model, FOLDER]]
+    : [[modelName, FOLDER, cost], [cells.ctx, cells.fiveHour], [cells.week, cells.model]];
+
+  const lines = [];
+  for (const row of rows) {
+    const parts = row.filter((p) => p !== null);
+    if (parts.length === 0) continue;
+    const fi = parts.indexOf(FOLDER);
+    if (fi !== -1) {
+      let name = String(data.folder);
+      if (st.truncFolder && avail !== null) {
+        const others = parts.filter((p) => p !== FOLDER);
+        const used = others.reduce((n, p) => n + visibleLength(p), 0)
+          + (parts.length - 1) * visibleLength(env.sep)
+          + visibleLength(folderSegment(env, '', data.branch));
+        const room = Math.max(FOLDER_MIN, avail - used);
+        if (name.length > room) name = truncateVisible(name, room, env.ascii);
+      }
+      parts[fi] = folderSegment(env, name, data.branch);
+    }
+    lines.push(parts.join(env.sep).replace(/ +$/, ''));
+  }
+  return lines;
+}
+
+// Shortening steps, cumulative. Each one changes the layout state; the
+// first state where every line fits wins.
+const SHORTEN_STEPS = [
+  (st) => { st.mode = 'three'; },
+  (st) => { st.truncFolder = true; },
+  (st) => { st.shortModel = true; },
+  (st) => { st.dropReset = true; },
+  (st) => { st.minimal = true; },
+];
+
+function buildLines(data, opts, width, ctx = { depth: colorDepth(process.env), now: new Date() }) {
+  const d = data || {};
+  const env = layoutEnv(opts, ctx || {});
+  const st = {
+    mode: 'two',
+    truncFolder: false,
+    shortModel: false,
+    dropReset: false,
+    minimal: opts.theme === 'minimal',
+  };
+
+  if (width === null || width === undefined) return renderState(d, env, st, null);
+
+  const avail = width - (opts.rightMargin || 0);
+  if (avail < 1) return [];
+
+  const fits = (ls) => ls.every((l) => visibleLength(l) <= avail);
+  let lines = renderState(d, env, st, avail);
+  for (const step of SHORTEN_STEPS) {
+    if (fits(lines)) break;
+    step(st);
+    lines = renderState(d, env, st, avail);
+  }
+  if (!fits(lines)) lines = lines.map((l) => fitLine(l, avail, env.ascii));
+
+  lines = lines.filter((l) => visibleLength(l) > 0).slice(0, 3);
+  if (opts.align === 'right') {
+    lines = lines.map((l) => ' '.repeat(Math.max(0, avail - visibleLength(l))) + l);
+  }
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -520,6 +774,9 @@ module.exports = {
   spawnRefresh,
   runRefresh,
   fetchUsage,
+  ICONS,
+  detectWidth,
+  buildLines,
 };
 
 if (require.main === module) {
