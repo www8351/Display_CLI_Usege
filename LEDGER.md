@@ -1,0 +1,33 @@
+# LEDGER
+
+## ISSUES
+
+Issue:  Upgrade of the status line tool requested. Scope and goals not yet defined.
+Action: Brainstorm with the user, agree on approach, write design doc, then plan.
+Status: IN PROGRESS
+
+Issue:  statusline.ps1 has two right-align code paths. Format-Line and Get-TerminalWidth are defined but never called. The active block falls back to width 120 instead of staying left aligned as README states. RightMargin parameter is unused.
+Action: Fold into upgrade work or fix separately.
+Status: OPEN
+
+## ACTIONS
+
+2026-11-22 | Bootstrapped LEDGER.md. Reviewed statusline.ps1, install.ps1, test.ps1, README.md to prepare upgrade discussion.
+
+## DECISIONS
+
+Issue:  Upgrade goals.
+Action: Upgrade adds new data (session cost, model name, folder and git branch), visual improvements (smooth partial bars, gradient colors, per-segment symbols, selectable themes), and Mac and Linux support. Burn-rate forecast was offered and not selected.
+Status: FINAL
+
+Issue:  Cross-platform runtime.
+Action: Rewrite in Node.js as one script for all platforms. Rejected: PowerShell 7 everywhere (needs pwsh install on Mac/Linux, about 0.5s per render), separate PowerShell and bash scripts (logic written twice, drift risk).
+Status: FINAL
+
+Issue:  Distribution, legacy code, verification.
+Action: Install stays git clone plus install script, no npm publishing. PowerShell version moves to legacy/powershell/ and is kept without further development. GitHub Actions runs tests on Windows, macOS and Linux. Design doc at docs/superpowers/specs/2026-11-22-node-rewrite-design.md.
+Status: FINAL
+
+Issue:  Layout height.
+Action: Prefer two lines. If the terminal is too narrow, new info moves to a third line. Never more than three lines.
+Status: FINAL
