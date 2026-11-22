@@ -338,6 +338,160 @@ function collect(payload, usage, opts, deps = { gitBranch }) {
 }
 
 // ---------------------------------------------------------------------------
+// Config dir, cache, credentials, background refresh
+// ---------------------------------------------------------------------------
+
+const os = require('node:os');
+
+const CACHE_FILE = 'quota-line-cache.json';
+const LOCK_FILE = 'quota-line-refresh.lock';
+const CREDENTIALS_FILE = '.credentials.json';
+const LOCK_MAX_AGE_MS = 30000;
+const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
+const FETCH_TIMEOUT_MS = 4000;
+
+function configDir(env = process.env) {
+  return env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+}
+
+function parseJsonText(text) {
+  return JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+}
+
+function readJson(file) {
+  try {
+    return parseJsonText(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function readCache(dir, refreshSeconds, now = Date.now()) {
+  const file = path.join(dir, CACHE_FILE);
+  let data = readJson(file);
+  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
+    return { data: null, stale: true };
+  }
+  let stale = true;
+  try {
+    stale = now - fs.statSync(file).mtimeMs >= refreshSeconds * 1000;
+  } catch {
+    data = null;
+  }
+  return { data, stale };
+}
+
+function tokenFrom(creds) {
+  const t = creds && creds.claudeAiOauth && creds.claudeAiOauth.accessToken;
+  return typeof t === 'string' && t !== '' ? t : null;
+}
+
+function getToken(dir, platform = process.platform) {
+  if (platform === 'darwin') {
+    try {
+      const { execFileSync } = require('node:child_process');
+      const out = execFileSync(
+        'security',
+        ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
+        { timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] },
+      ).toString();
+      const t = tokenFrom(parseJsonText(out.trim()));
+      if (t) return t;
+    } catch {
+      // fall back to the credentials file
+    }
+  }
+  return tokenFrom(readJson(path.join(dir, CREDENTIALS_FILE)));
+}
+
+function lockIsFresh(dir, now = Date.now()) {
+  try {
+    return now - fs.statSync(path.join(dir, LOCK_FILE)).mtimeMs < LOCK_MAX_AGE_MS;
+  } catch {
+    return false;
+  }
+}
+
+function spawnRefresh(opts) { // eslint-disable-line no-unused-vars
+  try {
+    if (lockIsFresh(configDir())) return;
+    const { spawn } = require('node:child_process');
+    spawn(process.execPath, [__filename, '--refresh'], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    }).unref();
+  } catch {
+    // never break a render
+  }
+}
+
+function fetchUsage(token) {
+  return new Promise((resolve, reject) => {
+    const https = require('node:https');
+    const req = https.request(
+      USAGE_URL,
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}`, 'anthropic-beta': 'oauth-2025-04-20' },
+      },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('error', reject);
+        res.on('end', () => {
+          if (res.statusCode < 200 || res.statusCode > 299) {
+            reject(new Error(`HTTP ${res.statusCode}`));
+            return;
+          }
+          try {
+            resolve(parseJsonText(Buffer.concat(chunks).toString('utf8')));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      },
+    );
+    req.setTimeout(FETCH_TIMEOUT_MS, () => {
+      req.destroy(new Error('timeout'));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function runRefresh(dir, deps = { getToken, fetchUsage }) {
+  const lock = path.join(dir, LOCK_FILE);
+  const cache = path.join(dir, CACHE_FILE);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(lock, '', { flag: 'w' });
+    try {
+      const token = deps.getToken(dir);
+      if (!token) throw new Error('no token');
+      const data = await deps.fetchUsage(token);
+      fs.writeFileSync(cache, JSON.stringify(data));
+    } catch {
+      // keep the old cache but mark it fresh so we back off; seed {} if none
+      try {
+        const now = new Date();
+        fs.utimesSync(cache, now, now);
+      } catch {
+        fs.writeFileSync(cache, '{}');
+      }
+    }
+  } catch {
+    // dir not writable: nothing more to do
+  } finally {
+    try {
+      fs.unlinkSync(lock);
+    } catch {
+      // already gone
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -358,6 +512,14 @@ module.exports = {
   formatCost,
   gitBranch,
   collect,
+  configDir,
+  readJson,
+  readCache,
+  getToken,
+  lockIsFresh,
+  spawnRefresh,
+  runRefresh,
+  fetchUsage,
 };
 
 if (require.main === module) {
