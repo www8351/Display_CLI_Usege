@@ -3,11 +3,11 @@
 ## ISSUES
 
 Issue:  Terminal width detection is unverified inside a real Claude Code session. If every candidate fails, output falls back to two left-aligned lines with no shortening, which can wrap on narrow terminals.
-Action: With user approval, temporarily point statusLine at the branch build, check that a width is detected and lines fit, then restore settings.json. Blocks merge of feat/node-rewrite.
+Action: User will run this check personally (declined an assisted run on 2026-11-22). Install from the branch, confirm lines fit and right alignment works; --width is the fallback. Blocks merge of PR #2.
 Status: OPEN
 
-Issue:  Branch feat/node-rewrite (Node.js rewrite) is complete and reviewed, not merged, not pushed.
-Action: After the live width check, user chooses merge or PR. First push triggers GitHub Actions on Windows, macOS, Linux with Node 18 and LTS; confirm all six cells green.
+Issue:  PR #2 (feat/node-rewrite into main) open at github.com/www8351/Display_CLI_Usege/pull/2. CI runs on Windows, macOS, Linux with Node 18 and LTS.
+Action: Merge after the live width check and green CI.
 Status: OPEN
 
 Issue:  Deferred minor findings from per-task and final reviews (all triaged "can wait"): non-atomic cache and settings writes, non-exclusive refresh lock, idle (not hard) fetch timeout, shell metacharacters in quoted labels not escaped, ambiguous-width glyphs in CJK terminals, stale per-model bucket shown when refresh keeps failing, assorted test gaps (need-API gating in-process, executing a spaced-path install command).
