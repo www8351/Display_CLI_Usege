@@ -35,6 +35,14 @@ test('readCache fresh, stale, BOM, corrupt, empty object', () => {
   write('quota-line-cache.json', '{"five_'); assert.equal(readCache(dir, 300).data, null);
   write('quota-line-cache.json', '{}'); assert.equal(readCache(dir, 300).data, null);
 });
+test('readCache backoff: unusable content derives stale from mtime', async () => {
+  await runRefresh(dir, { getToken: () => null, fetchUsage: async () => ({}) });
+  assert.deepEqual(readCache(dir, 300), { data: null, stale: false });
+  write('quota-line-cache.json', '{"five_');
+  assert.deepEqual(readCache(dir, 300), { data: null, stale: false });
+  age('quota-line-cache.json', 400);
+  assert.deepEqual(readCache(dir, 300), { data: null, stale: true });
+});
 test('readJson returns null on missing file', () => assert.equal(readJson(path.join(dir, 'nope.json')), null));
 test('getToken from file with BOM', () => {
   write('.credentials.json', '\uFEFF{"claudeAiOauth":{"accessToken":"tok"}}');

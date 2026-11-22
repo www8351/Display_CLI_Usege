@@ -368,17 +368,17 @@ function readJson(file) {
 
 function readCache(dir, refreshSeconds, now = Date.now()) {
   const file = path.join(dir, CACHE_FILE);
-  let data = readJson(file);
-  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
+  let mtimeMs;
+  try {
+    mtimeMs = fs.statSync(file).mtimeMs;
+  } catch {
     return { data: null, stale: true };
   }
-  let stale = true;
-  try {
-    stale = now - fs.statSync(file).mtimeMs >= refreshSeconds * 1000;
-  } catch {
+  let data = readJson(file);
+  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
     data = null;
   }
-  return { data, stale };
+  return { data, stale: now - mtimeMs >= refreshSeconds * 1000 };
 }
 
 function tokenFrom(creds) {
