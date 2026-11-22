@@ -62,6 +62,19 @@ node install.js --align left
 node install.js --bar-width 16
 ```
 
+## Update
+
+Pull the latest version and run the installer again:
+
+```
+git pull
+node install.js
+```
+
+The options from your current command are kept. Flags you pass now override them.
+
+## Remove
+
 To remove everything:
 
 ```
@@ -102,7 +115,7 @@ The same options work on `install.js` and on `statusline.js`. The installer only
 * `minimal`: symbols instead of long labels and shorter bars, for narrow terminals. It is also used automatically when nothing else fits.
 * `mono`: no color at all. Setting the `NO_COLOR` environment variable has the same effect.
 
-Color depth follows the terminal: 24-bit when `COLORTERM` reports it, 256 colors otherwise when `TERM` allows it, and 16 colors as the fallback.
+Color depth follows the terminal: 24-bit when `COLORTERM` reports it or `WT_SESSION` is set (Windows Terminal), 256 colors otherwise when `TERM` allows it, and 16 colors as the fallback.
 
 ### Icons
 
@@ -145,7 +158,7 @@ Where the token comes from:
 
 Set `CLAUDE_CONFIG_DIR` to use a folder other than `~/.claude`. It applies to every path: settings, credentials, cache, lock file, debug file and the install folder.
 
-Right after `/clear` you may see the line `quota: waiting for first response` until the first reply arrives.
+The placeholder `quota: waiting for first response` appears only when Claude Code sends no input, or input the script cannot read. A fresh session, for example after `/clear`, shows the context at 0%.
 
 ### Debugging
 
@@ -204,13 +217,13 @@ MIT
 
 קטע שאין עבורו נתונים לא מוצג. התוויות מרופדות לרוחב התווית הארוכה ביותר, כך שהפסים מתיישרים.
 
-עלות הסשן במנוי Pro או Max היא הערכה שקלוד קוד מחשב. היא לא חיוב.
+עלות הסשן במנוי `Pro` או `Max` היא הערכה שקלוד קוד מחשב. היא לא חיוב.
 
 ## דרישות
 
-* Node.js בגרסה 18 ומעלה, בלי חבילות להתקין.
+* `Node.js` בגרסה `18` ומעלה, בלי חבילות להתקין.
 * קלוד קוד בגרסה 2.1.6 ומעלה.
-* מנוי Pro או Max. נתוני המגבלות לא נשלחים בסשן שעובד עם מפתח API.
+* מנוי `Pro` או `Max`. נתוני המגבלות לא נשלחים בסשן שעובד עם מפתח `API`.
 
 ## התקנה
 
@@ -232,6 +245,19 @@ node install.js --theme minimal --icons none
 node install.js --align left
 node install.js --bar-width 16
 ```
+
+## עדכון
+
+מורידים את הגרסה העדכנית ומריצים את ההתקנה שוב:
+
+```
+git pull
+node install.js
+```
+
+האפשרויות מהפקודה הנוכחית נשמרות. דגלים שמעבירים עכשיו גוברים עליהן.
+
+## הסרה
 
 להסרה מלאה:
 
@@ -277,7 +303,7 @@ node install.js --help
 * `minimal`: סמלים במקום תוויות ארוכות ופסים קצרים יותר, לטרמינלים צרים. המצב הזה מופעל גם אוטומטית כשום דבר אחר לא מספיק.
 * `mono`: בלי צבע בכלל. הגדרת משתנה הסביבה `NO_COLOR` נותנת אותה תוצאה.
 
-עומק הצבע נקבע לפי הטרמינל. צבע של 24 סיביות כשהטרמינל מדווח עליו, 256 צבעים כשהוא מאפשר זאת, ו 16 צבעים כברירת מחדל.
+עומק הצבע נקבע לפי הטרמינל. צבע של 24 סיביות כשהמשתנה `COLORTERM` מדווח עליו או כשהמשתנה `WT_SESSION` מוגדר (חלונות טרמינל), 256 צבעים כשהוא מאפשר זאת, ו 16 צבעים כברירת מחדל.
 
 ### סמלים
 
@@ -307,9 +333,9 @@ node install.js --help
 
 ## איך זה עובד
 
-קלוד קוד מריץ את הפקודה המוגדרת אחרי כל תור ומעביר לה JSON דרך הקלט הסטנדרטי. הסקריפט קורא משם את מילוי ההקשר, את מגבלות חמש השעות והשבוע, את המודל, את התיקייה ואת העלות. הענף של גיט נקרא מהקובץ `.git/HEAD` בעלייה במעלה התיקיות, ולכן לא מופעל תהליך גיט. כשהראש מנותק מוצג גיבוב קצר.
+קלוד קוד מריץ את הפקודה המוגדרת אחרי כל תור ומעביר לה נתוני `JSON` דרך הקלט הסטנדרטי. הסקריפט קורא משם את מילוי ההקשר, את מגבלות חמש השעות והשבוע, את המודל, את התיקייה ואת העלות. הענף של גיט נקרא מהקובץ `.git/HEAD` בעלייה במעלה התיקיות, ולכן לא מופעל תהליך גיט. כשהראש מנותק מוצג גיבוב קצר.
 
-הנתון השבועי למודל בודד לא נמצא באותו JSON. בשבילו הסקריפט פונה לאותה נקודת קצה שבה משתמשת הפקודה `/usage`, עם הטוקן שקלוד קוד כבר מחזיק. נקודת הקצה הזו לא מתועדת ועלולה להשתנות. אם היא או הטוקן לא זמינים, החלק של המודל פשוט לא מוצג והשאר ממשיך לעבוד.
+הנתון השבועי למודל בודד לא נמצא באותם נתוני `JSON`. בשבילו הסקריפט פונה לאותה נקודת קצה שבה משתמשת הפקודה `/usage`, עם הטוקן שקלוד קוד כבר מחזיק. נקודת הקצה הזו לא מתועדת ועלולה להשתנות. אם היא או הטוקן לא זמינים, החלק של המודל פשוט לא מוצג והשאר ממשיך לעבוד.
 
 ההצגה אף פעם לא ממתינה לרשת. היא קוראת את קובץ המטמון. כשהמטמון ישן מהערך של `--refresh-seconds`, תהליך רקע נפרד מביא נתונים חדשים וכותב אותם. קובץ נעילה מונע שני רענונים במקביל, וכשל בהבאה גורם להמתנה במקום ניסיון חוזר בכל הצגה.
 
@@ -324,7 +350,11 @@ node install.js --help
 
 כדי להשתמש בתיקייה אחרת מ `~/.claude` מגדירים את משתנה הסביבה `CLAUDE_CONFIG_DIR`. הוא חל על כל הנתיבים: ההגדרות, ההרשאות, המטמון, קובץ הנעילה, קובץ האבחון ותיקיית ההתקנה.
 
-מיד אחרי `/clear` ייתכן שתופיע שורת המתנה עד שתגיע התשובה הראשונה.
+שורת ההמתנה הבאה מופיעה רק כשקלוד קוד לא שולח קלט, או שולח קלט שהסקריפט לא מצליח לקרוא:
+
+`quota: waiting for first response`
+
+סשן חדש, למשל אחרי `/clear`, מציג מילוי הקשר של 0 אחוז.
 
 ### אבחון
 
@@ -338,7 +368,7 @@ node install.js --help
 npm test
 ```
 
-הפקודה מריצה את `node --test`, בלי תלויות. תהליך אוטומטי בגיטהאב מריץ את הבדיקות באובונטו, בחלונות ובמק, עם Node 18 ועם גרסת התמיכה הארוכה העדכנית.
+הפקודה מריצה את `node --test`, בלי תלויות. תהליך אוטומטי בגיטהאב מריץ את הבדיקות באובונטו, בחלונות ובמק, עם `Node 18` ועם גרסת התמיכה הארוכה העדכנית.
 
 ## גרסת פאורשל ישנה
 
