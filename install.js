@@ -19,7 +19,7 @@ Options (same as statusline.js):
   --week-label TEXT    --ascii               --align left|right
   --width N            --right-margin N      --theme NAME
   --icons NAME         --no-model            --no-folder
-  --no-cost            --dump-input
+  --no-cost            --dump-input          --colors gradient|steps
 
 Other:
   --uninstall          Remove the status line, its files and its cache
@@ -32,6 +32,7 @@ const CHOICES = {
   align: ['left', 'right'],
   theme: ['default', 'minimal', 'mono'],
   icons: ['unicode', 'nerd', 'none'],
+  colors: ['gradient', 'steps'],
 };
 
 function checkNode(version) {

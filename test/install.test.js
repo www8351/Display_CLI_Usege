@@ -231,6 +231,13 @@ test('parseInstallArgs lowercases and validates align, theme and icons', () => {
   assert.throws(() => parseInstallArgs(['--icons', 'emoji']), /--icons.*unicode\|nerd\|none/);
 });
 
+test('parseInstallArgs accepts --colors steps and builds the flag', () => {
+  const ex = parseInstallArgs(['--colors', 'STEPS']).explicit;
+  assert.deepEqual(ex, { colors: 'steps' });
+  assert.throws(() => parseInstallArgs(['--colors', 'rainbow']), /--colors.*gradient\|steps/);
+  assert.ok(buildCommand('/x/statusline.js', { ...DEFAULTS, colors: 'steps' }).includes('--colors steps'));
+});
+
 test('CLI exits 1 with a one line error for an unknown option value', () => {
   const r = spawnSync(process.execPath, [path.join(repoDir, 'install.js'), '--theme', 'neon'], { env, encoding: 'utf8' });
   assert.equal(r.status, 1);

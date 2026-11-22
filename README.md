@@ -100,6 +100,7 @@ The same options work on `install.js` and on `statusline.js`. The installer only
 | `--week-label TEXT` | `Weekly` | Label for the weekly bar |
 | `--theme NAME` | `default` | `default`, `minimal` or `mono` |
 | `--icons NAME` | `unicode` | `unicode`, `nerd` or `none` |
+| `--colors gradient\|steps` | `gradient` | Smooth color change, or four fixed colors per quarter |
 | `--ascii` | off | Replace the glyphs the tool draws with plain ASCII |
 | `--align left\|right` | `left` in `statusline.js`, `right` from the installer | Alignment of the lines |
 | `--width N` | auto | Fixed terminal width, for when detection fails |
@@ -114,6 +115,8 @@ The same options work on `install.js` and on `statusline.js`. The installer only
 * `default`: full labels, colored bars with a smooth gradient.
 * `minimal`: symbols instead of long labels and shorter bars, for narrow terminals. It is also used automatically when nothing else fits.
 * `mono`: no color at all. Setting the `NO_COLOR` environment variable has the same effect.
+
+`--colors steps` replaces the smooth change with four fixed colors: green under 25%, yellow under 50%, orange under 75%, red from 75%.
 
 Color depth follows the terminal: 24-bit when `COLORTERM` reports it or `WT_SESSION` is set (Windows Terminal), 256 colors otherwise when `TERM` allows it, and 16 colors as the fallback.
 
@@ -288,6 +291,7 @@ node install.js --help
 | `--week-label TEXT` | `Weekly` | תווית הפס השבועי |
 | `--theme NAME` | `default` | `default`, `minimal` או `mono` |
 | `--icons NAME` | `unicode` | `unicode`, `nerd` או `none` |
+| `--colors gradient\|steps` | `gradient` | מעבר צבע רציף, או ארבעה צבעים קבועים לפי רבעים |
 | `--ascii` | כבוי | מחליף את הסימנים שהכלי מצייר בתווי אסקי פשוטים |
 | `--align left\|right` | `left` בסקריפט, `right` מההתקנה | יישור השורות |
 | `--width N` | אוטומטי | רוחב טרמינל קבוע, למקרה שהזיהוי נכשל |
@@ -302,6 +306,12 @@ node install.js --help
 * `default`: תוויות מלאות ופסים צבעוניים עם מעבר צבע רציף.
 * `minimal`: סמלים במקום תוויות ארוכות ופסים קצרים יותר, לטרמינלים צרים. המצב הזה מופעל גם אוטומטית כשום דבר אחר לא מספיק.
 * `mono`: בלי צבע בכלל. הגדרת משתנה הסביבה `NO_COLOR` נותנת אותה תוצאה.
+
+מצב המדרגות מחליף את המעבר הרציף בארבעה צבעים קבועים. ירוק מתחת ל 25 אחוז, צהוב מתחת ל 50, כתום מתחת ל 75, ואדום מ 75 ומעלה.
+
+```
+--colors steps
+```
 
 עומק הצבע נקבע לפי הטרמינל. צבע של 24 סיביות כשהמשתנה `COLORTERM` מדווח עליו או כשהמשתנה `WT_SESSION` מוגדר (חלונות טרמינל), 256 צבעים כשהוא מאפשר זאת, ו 16 צבעים כברירת מחדל.
 

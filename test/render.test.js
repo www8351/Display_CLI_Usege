@@ -45,3 +45,25 @@ test('ansi helpers', () => {
 test('parseArgs ignores unknown tokens including Object.prototype names', () => {
   assert.deepEqual(parseArgs(['constructor', 'toString', '--unknown', 'x', '__proto__']), DEFAULTS);
 });
+
+test('pctColor steps: four levels at 25, 50, 75', () => {
+  const tc = (p) => pctColor(p, 'truecolor', 'steps');
+  assert.equal(tc(0), tc(24.9));
+  assert.equal(tc(25), tc(49.9));
+  assert.equal(tc(50), tc(74.9));
+  assert.equal(tc(75), tc(100));
+  assert.equal(new Set([tc(0), tc(25), tc(50), tc(75)]).size, 4);
+  assert.equal(pctColor(0, 'truecolor', 'steps'), pctColor(0, 'truecolor'));
+  assert.equal(pctColor(100, 'truecolor', 'steps'), pctColor(100, 'truecolor'));
+  assert.equal(pctColor(10, '16', 'steps'), '\x1b[32m');
+  assert.equal(pctColor(30, '16', 'steps'), '\x1b[33m');
+  assert.equal(pctColor(60, '16', 'steps'), '\x1b[91m');
+  assert.equal(pctColor(80, '16', 'steps'), '\x1b[31m');
+  assert.match(pctColor(60, '256', 'steps'), /^\x1b\[38;5;\d+m$/);
+  assert.equal(pctColor(60, 'none', 'steps'), '');
+});
+
+test('parseArgs --colors', () => {
+  assert.equal(DEFAULTS.colors, 'gradient');
+  assert.equal(parseArgs(['--colors', 'Steps']).colors, 'steps');
+});

@@ -20,6 +20,7 @@ const DEFAULTS = {
   dumpInput: false,
   theme: 'default',
   icons: 'unicode',
+  colors: 'gradient',
   showModel: true,
   showFolder: true,
   showCost: true,
@@ -43,6 +44,7 @@ const FLAGS = {
   '--dump-input': ['dumpInput', 'bool'],
   '--theme': ['theme', 'str'],
   '--icons': ['icons', 'str'],
+  '--colors': ['colors', 'str'],
   '--no-model': ['showModel', 'off'],
   '--no-folder': ['showFolder', 'off'],
   '--no-cost': ['showCost', 'off'],
@@ -50,7 +52,7 @@ const FLAGS = {
 };
 
 // Values of these options are matched case-insensitively.
-const LOWER_KEYS = new Set(['align', 'theme', 'icons']);
+const LOWER_KEYS = new Set(['align', 'theme', 'icons', 'colors']);
 
 function parseArgs(argv) {
   const opts = Object.assign({}, DEFAULTS);
@@ -88,7 +90,20 @@ function colorDepth(env) {
 
 const GREEN = [64, 200, 90];
 const YELLOW = [235, 200, 40];
+const ORANGE = [245, 140, 30];
 const RED = [230, 60, 60];
+
+// --colors steps: one fixed color per quarter, green to red.
+const STEPS = [
+  { below: 25, rgb: GREEN, sgr16: '\x1b[32m' },
+  { below: 50, rgb: YELLOW, sgr16: '\x1b[33m' },
+  { below: 75, rgb: ORANGE, sgr16: '\x1b[91m' },
+  { below: Infinity, rgb: RED, sgr16: '\x1b[31m' },
+];
+
+function stepFor(pct) {
+  return STEPS.find((s) => pct < s.below) || STEPS[STEPS.length - 1];
+}
 
 function lerp(a, b, t) {
   return a.map((c, i) => Math.round(c + (b[i] - c) * t));
@@ -101,14 +116,16 @@ function gradientRgb(pct) {
   return lerp(GREEN, YELLOW, pct / 50);
 }
 
-function pctColor(pct, depth) {
+function pctColor(pct, depth, mode = 'gradient') {
   if (depth === 'none') return '';
+  const steps = mode === 'steps';
   if (depth === '16') {
+    if (steps) return stepFor(pct).sgr16;
     if (pct >= 80) return '\x1b[31m';
     if (pct >= 50) return '\x1b[33m';
     return '\x1b[32m';
   }
-  const [r, g, b] = gradientRgb(pct);
+  const [r, g, b] = steps ? stepFor(pct).rgb : gradientRgb(pct);
   if (depth === '256') {
     const q = (c) => Math.round(c / 255 * 5);
     return `\x1b[38;5;${16 + 36 * q(r) + 6 * q(g) + q(b)}m`;
@@ -642,7 +659,7 @@ function barCell(env, st, key, pct, resetsAt, weekly) {
   const want = st.minimal ? Math.min(opts.barWidth, 5) : opts.barWidth;
   const width = Math.max(1, Math.floor(want) || 1);
   const bar = renderBar(pct, width, env.ascii);
-  const color = pctColor(pct, env.depth);
+  const color = pctColor(pct, env.depth, opts.colors);
   const filled = bar.full + bar.partial;
   const barText = (filled ? `${color}${filled}${reset}` : '') + (bar.empty ? `${dim}${bar.empty}${reset}` : '');
   const pctText = `${color}${`${Math.round(pct)}%`.padStart(4)}${reset}`;
