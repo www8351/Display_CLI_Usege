@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { DEFAULTS, ICONS, detectWidth, buildLines, stripAnsi, visibleLength } = require('../statusline.js');
 
 const now = new Date(2026, 10, 22, 8, 0);
@@ -37,8 +40,22 @@ test('unknown width: two lines, left aligned', () => {
   const l = plain(buildLines(D, DEFAULTS, null, C));
   assert.equal(l.length, 2); assert.ok(!l[0].startsWith(' '));
 });
-test('right align pads to available width', () => {
-  for (const s of buildLines(D, { ...DEFAULTS, align: 'right' }, 220, C)) assert.equal(visibleLength(s), 218);
+test('right align pads bar lines as a block', () => {
+  for (const w of [220, 110]) {
+    const l = buildLines(D, { ...DEFAULTS, align: 'right' }, w, C);
+    const lens = l.map(visibleLength);
+    assert.equal(Math.max(...lens), w - 2, `width ${w}`);
+    for (const n of lens) assert.ok(n <= w - 2, `width ${w}`);
+    const bars = plain(l).filter(s => s.includes('%'));
+    assert.ok(bars.length >= 2, `width ${w}`);
+    assert.equal(new Set(bars.map(s => s.indexOf('%'))).size, 1, `width ${w} %`);
+    assert.equal(new Set(bars.map(s => s.indexOf('│'))).size, 1, `width ${w} │`);
+  }
+});
+test('right align pads an info only line on its own', () => {
+  const l = plain(buildLines(D, { ...DEFAULTS, align: 'right' }, 110, C));
+  assert.ok(l[0].includes('$3.75') && l[0].endsWith('$3.75'));
+  assert.equal(l[0].length, 108);
 });
 test('partial data', () => {
   const only = { ctx: 5, fiveHour: null, week: null, model: null, modelName: null, cost: null, folder: null, branch: null };
@@ -81,8 +98,21 @@ test('detectWidth tty candidate is only a last resort', () => {
 test('detectWidth never throws and returns null when nothing works', () => {
   assert.equal(detectWidth(DEFAULTS, { COLUMNS: 'abc' }, () => { throw new Error('no tty'); }), null);
   assert.equal(detectWidth(DEFAULTS, { COLUMNS: '0' }, () => undefined), null);
-  const real = detectWidth(DEFAULTS, {});
-  assert.ok(real === null || (Number.isInteger(real) && real > 0));
+  assert.equal(detectWidth(DEFAULTS, {}, () => -5), null);
+});
+test('real console probe leaves no file behind', () => {
+  const before = process.cwd();
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qlwidth-'));
+  try {
+    process.chdir(tmp);
+    const real = detectWidth(DEFAULTS, {});
+    assert.ok(real === null || (Number.isInteger(real) && real > 0));
+    assert.deepEqual(fs.readdirSync(tmp), []);
+    assert.ok(!fs.existsSync(path.join(tmp, 'CONOUT$')));
+  } finally {
+    process.chdir(before);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
 });
 test('depth none emits no escape sequences at all', () => {
   for (const w of [220, 110, 60, 20, null]) {

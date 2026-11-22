@@ -526,7 +526,9 @@ function ttyColumns() {
   let fd = null;
   let ws = null;
   try {
-    fd = fs.openSync(process.platform === 'win32' ? 'CONOUT$' : '/dev/tty', 'w');
+    // Device paths opened with 'r+' (open existing only). A bare 'CONOUT$'
+    // with 'w' would create a regular file in the cwd when no console exists.
+    fd = fs.openSync(process.platform === 'win32' ? '\\\\.\\CONOUT$' : '/dev/tty', 'r+');
     ws = new (require('node:tty').WriteStream)(fd);
     return ws.columns;
   } finally {
@@ -657,7 +659,8 @@ function folderSegment(env, name, branch) {
   return icons.branch ? `${icon}${name} ${icons.branch} ${branch}` : `${icon}${name} (${branch})`;
 }
 
-// One render of the layout state. Returns unpadded, untruncated lines.
+// One render of the layout state. Returns unpadded, untruncated lines as
+// { text, bars }, where bars marks a line that holds bar cells.
 function renderState(data, env, st, avail) {
   const { icons } = env;
   const cells = {
@@ -681,9 +684,11 @@ function renderState(data, env, st, avail) {
     ? [[cells.ctx, cells.fiveHour, modelName, cost], [cells.week, cells.model, FOLDER]]
     : [[modelName, FOLDER, cost], [cells.ctx, cells.fiveHour], [cells.week, cells.model]];
 
+  const barCells = new Set(Object.values(cells).filter((c) => c !== null));
   const lines = [];
   for (const row of rows) {
     const parts = row.filter((p) => p !== null);
+    const bars = parts.some((p) => barCells.has(p));
     if (parts.length === 0) continue;
     const fi = parts.indexOf(FOLDER);
     if (fi !== -1) {
@@ -698,9 +703,19 @@ function renderState(data, env, st, avail) {
       }
       parts[fi] = folderSegment(env, name, data.branch);
     }
-    lines.push(parts.join(env.sep).replace(/ +$/, ''));
+    lines.push({ text: parts.join(env.sep).replace(/ +$/, ''), bars });
   }
   return lines;
+}
+
+// Right alignment. Bar lines are padded as one block, from the longest of
+// them, so their columns stay aligned. Other lines are padded on their own.
+function alignRight(lines, avail) {
+  const barWidest = Math.max(0, ...lines.filter((l) => l.bars).map((l) => visibleLength(l.text)));
+  return lines.map((l) => {
+    const pad = avail - (l.bars ? barWidest : visibleLength(l.text));
+    return { ...l, text: ' '.repeat(Math.max(0, pad)) + l.text };
+  });
 }
 
 // Shortening steps, cumulative. Each one changes the layout state; the
@@ -724,25 +739,23 @@ function buildLines(data, opts, width, ctx = { depth: colorDepth(process.env), n
     minimal: opts.theme === 'minimal',
   };
 
-  if (width === null || width === undefined) return renderState(d, env, st, null);
+  if (width === null || width === undefined) return renderState(d, env, st, null).map((l) => l.text);
 
   const avail = width - (opts.rightMargin || 0);
   if (avail < 1) return [];
 
-  const fits = (ls) => ls.every((l) => visibleLength(l) <= avail);
+  const fits = (ls) => ls.every((l) => visibleLength(l.text) <= avail);
   let lines = renderState(d, env, st, avail);
   for (const step of SHORTEN_STEPS) {
     if (fits(lines)) break;
     step(st);
     lines = renderState(d, env, st, avail);
   }
-  if (!fits(lines)) lines = lines.map((l) => fitLine(l, avail, env.ascii));
+  if (!fits(lines)) lines = lines.map((l) => ({ ...l, text: fitLine(l.text, avail, env.ascii) }));
 
-  lines = lines.filter((l) => visibleLength(l) > 0).slice(0, 3);
-  if (opts.align === 'right') {
-    lines = lines.map((l) => ' '.repeat(Math.max(0, avail - visibleLength(l))) + l);
-  }
-  return lines;
+  lines = lines.filter((l) => visibleLength(l.text) > 0).slice(0, 3);
+  if (opts.align === 'right') lines = alignRight(lines, avail);
+  return lines.map((l) => l.text);
 }
 
 // ---------------------------------------------------------------------------
