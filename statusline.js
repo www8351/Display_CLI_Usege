@@ -169,6 +169,7 @@ function truncateVisible(s, max, ascii) {
 // Data extraction
 // ---------------------------------------------------------------------------
 
+const fs = require('node:fs');
 const path = require('node:path');
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -255,7 +256,44 @@ function folderName(dir) {
   return base || dir;
 }
 
-function collect(payload, usage, opts, deps = { gitBranch: () => null }) {
+function branchFromHead(headFile) {
+  const head = fs.readFileSync(headFile, 'utf8').trim();
+  const m = /^ref: *(.+)$/.exec(head);
+  if (m) {
+    const ref = m[1].trim();
+    return ref.startsWith('refs/') ? ref.slice('refs/'.length).replace(/^heads\//, '') : ref;
+  }
+  return /^[0-9a-f]{40,64}$/i.test(head) ? head.slice(0, 7) : null;
+}
+
+function gitBranch(startDir) {
+  try {
+    if (typeof startDir !== 'string' || startDir === '') return null;
+    let dir = path.resolve(startDir);
+    for (;;) {
+      const dotGit = path.join(dir, '.git');
+      let st = null;
+      try {
+        st = fs.statSync(dotGit);
+      } catch {
+        st = null;
+      }
+      if (st && st.isDirectory()) return branchFromHead(path.join(dotGit, 'HEAD'));
+      if (st && st.isFile()) {
+        const m = /^gitdir: *(.+)$/m.exec(fs.readFileSync(dotGit, 'utf8'));
+        if (!m) return null;
+        return branchFromHead(path.join(path.resolve(dir, m[1].trim()), 'HEAD'));
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) return null;
+      dir = parent;
+    }
+  } catch {
+    return null;
+  }
+}
+
+function collect(payload, usage, opts, deps = { gitBranch }) {
   const p = payload && typeof payload === 'object' ? payload : {};
   const u = usage && typeof usage === 'object' ? usage : {};
   const rl = p.rate_limits && typeof p.rate_limits === 'object' ? p.rate_limits : {};
@@ -318,6 +356,7 @@ module.exports = {
   findModelBucket,
   shortModelName,
   formatCost,
+  gitBranch,
   collect,
 };
 
