@@ -20,6 +20,8 @@ Status: OPEN
 
 ## ACTIONS
 
+2026-11-23 | User feedback after install: folder and branch segment not useful, wants four color levels. Added --colors steps (green under 25, yellow under 50, orange under 75, red from 75; 16-color fallback 32/33/91/31), default stays gradient. Reinstalled locally with --align right --colors steps --no-folder. 102 tests pass. Commit aa7dcb3, not pushed.
+
 2026-11-23 | Installed the Node version from feat/node-rewrite on the user's machine at the user's request. Legacy PowerShell statusLine replaced, flags carried (only --align right differs from defaults). Backup settings.json.bak-20261123-001618. Smoke render of the installed script with the real cache shows all segments, including the Fable bucket. Live width check in a running session still pending.
 
 2026-11-22 | Final whole-branch review: ready "with fixes". Fix wave: legacy left-aligned installs stay left, reinstall keeps current Node flags, option values lowercased and validated, empty settings.json accepted, refresh child runs from the temp dir with an error handler, test no longer spawns a real refresh (macOS Keychain risk), README gained Update section and Hebrew cleanup. 99 tests pass.
@@ -49,6 +51,10 @@ Status: FINAL
 Issue:  Layout height.
 Action: Prefer two lines. If the terminal is too narrow, new info moves to a third line. Never more than three lines.
 Status: FINAL
+
+Issue:  Color levels.
+Action: Two color modes. gradient (default) keeps the smooth green, yellow, red change. steps gives four fixed colors per quarter, chosen by the user for their own install. Folder and branch stay available; the user's install hides them with --no-folder.
+Status: REVISIT
 
 Issue:  Right alignment with bar table.
 Action: Right alignment pads all bar lines by the same amount (from the longest), so bar columns stay aligned; a shorter bar line may end before the right edge. An info-only line aligns on its own. Rejected: padding each line separately, which breaks the table.
