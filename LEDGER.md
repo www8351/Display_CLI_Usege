@@ -3,11 +3,11 @@
 ## ISSUES
 
 Issue:  Node.js rewrite ready to build. Design approved 2026-11-22. Plan at docs/superpowers/plans/2026-11-22-node-rewrite.md (9 tasks, Task 1 is a width spike that needs the user).
-Action: User reviews the plan and picks an execution method, then start Task 1.
-Status: OPEN
+Action: Execution method chosen: subagent per task with review. Next is Task 1, which needs the user to approve a temporary settings.json change.
+Status: IN PROGRESS
 
-Issue:  Commits d6a56c0 and 5c2a096 carry a Claude-Session trailer, which the global rules forbid (no AI attribution). Both are local and unpushed.
-Action: Strip the trailer before the next push.
+Issue:  Older pushed commits 6a36cd4 and e1e0b72 carry a Claude-Session trailer (AI attribution). Commits from 2026-11-22 are clean.
+Action: Left as is. Rewriting pushed history needs an explicit user instruction.
 Status: OPEN
 
 Issue:  statusline.ps1 has two right-align code paths. Format-Line and Get-TerminalWidth are defined but never called. The active block falls back to width 120 instead of staying left aligned as README states. RightMargin parameter is unused.
