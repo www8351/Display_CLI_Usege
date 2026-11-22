@@ -78,3 +78,11 @@ test('warm render is fast', (t) => {
   run(['--model-key', ''], full);
   t.diagnostic(`full process ${Date.now() - s0} ms`);
 });
+
+test('parseArgs lowercases align, theme and icons', () => {
+  const o = parseArgs(['--align', 'Right', '--theme', 'MONO', '--icons', 'Nerd', '--model-label', 'MiXed']);
+  assert.equal(o.align, 'right');
+  assert.equal(o.theme, 'mono');
+  assert.equal(o.icons, 'nerd');
+  assert.equal(o.modelLabel, 'MiXed');
+});

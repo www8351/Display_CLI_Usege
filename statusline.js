@@ -49,6 +49,9 @@ const FLAGS = {
   '--refresh': ['refresh', 'bool'],
 };
 
+// Values of these options are matched case-insensitively.
+const LOWER_KEYS = new Set(['align', 'theme', 'icons']);
+
 function parseArgs(argv) {
   const opts = Object.assign({}, DEFAULTS);
   for (let i = 0; i < argv.length; i++) {
@@ -64,7 +67,7 @@ function parseArgs(argv) {
         const n = parseInt(val, 10);
         if (!Number.isNaN(n)) opts[key] = n;
       } else {
-        opts[key] = val;
+        opts[key] = LOWER_KEYS.has(key) ? val.toLowerCase() : val;
       }
     }
   }
@@ -420,7 +423,8 @@ function spawnRefresh(opts) { // eslint-disable-line no-unused-vars
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
-    }).unref();
+      cwd: os.tmpdir(),
+    }).on('error', () => {}).unref();
   } catch {
     // never break a render
   }
