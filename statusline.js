@@ -764,6 +764,7 @@ function buildLines(data, opts, width, ctx = { depth: colorDepth(process.env), n
 
 module.exports = {
   DEFAULTS,
+  FLAGS,
   parseArgs,
   colorDepth,
   pctColor,
