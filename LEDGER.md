@@ -2,15 +2,21 @@
 
 ## ISSUES
 
-Issue:  Upgrade of the status line tool requested. Scope and goals not yet defined.
-Action: Brainstorm with the user, agree on approach, write design doc, then plan.
-Status: IN PROGRESS
+Issue:  Node.js rewrite ready to build. Design approved 2026-11-22. Plan at docs/superpowers/plans/2026-11-22-node-rewrite.md (9 tasks, Task 1 is a width spike that needs the user).
+Action: User reviews the plan and picks an execution method, then start Task 1.
+Status: OPEN
+
+Issue:  Commits d6a56c0 and 5c2a096 carry a Claude-Session trailer, which the global rules forbid (no AI attribution). Both are local and unpushed.
+Action: Strip the trailer before the next push.
+Status: OPEN
 
 Issue:  statusline.ps1 has two right-align code paths. Format-Line and Get-TerminalWidth are defined but never called. The active block falls back to width 120 instead of staying left aligned as README states. RightMargin parameter is unused.
 Action: Fold into upgrade work or fix separately.
 Status: OPEN
 
 ## ACTIONS
+
+2026-11-22 | Design doc approved by the user. Wrote the implementation plan. Old folder Downloads\Claude_Status_CLI kept at the user's request.
 
 2026-11-22 | Repo path move. Local clone at C:\Users\www83\Display_CLI_Usege tracks github.com/www8351/Display_CLI_Usege (renamed from Claude_Quota_Line), fetch works. Old folder Downloads\Claude_Status_CLI has no .git and its files match the repo except line endings. Opened the new path in GitHub Desktop via its URL protocol. Old folder left in place.
 
