@@ -12,6 +12,8 @@ Status: OPEN
 
 ## ACTIONS
 
+2026-11-22 | Repo path move. Local clone at C:\Users\www83\Display_CLI_Usege tracks github.com/www8351/Display_CLI_Usege (renamed from Claude_Quota_Line), fetch works. Old folder Downloads\Claude_Status_CLI has no .git and its files match the repo except line endings. Opened the new path in GitHub Desktop via its URL protocol. Old folder left in place.
+
 2026-11-22 | Bootstrapped LEDGER.md. Reviewed statusline.ps1, install.ps1, test.ps1, README.md to prepare upgrade discussion.
 
 ## DECISIONS
