@@ -7,7 +7,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { DEFAULTS, FLAGS, configDir, readJson } = require('./statusline.js');
+const { DEFAULTS, FLAGS, parseArgs, configDir, readJson } = require('./statusline.js');
 
 const HELP = `Usage:
   node install.js [options]
@@ -26,6 +26,13 @@ Other:
   --help               Show this text
 
 Set CLAUDE_CONFIG_DIR to use a folder other than ~/.claude.`;
+
+// Allowed values for the options whose values are matched case-insensitively.
+const CHOICES = {
+  align: ['left', 'right'],
+  theme: ['default', 'minimal', 'mono'],
+  icons: ['unicode', 'nerd', 'none'],
+};
 
 function checkNode(version) {
   return parseInt(String(version).replace(/^v/, ''), 10) >= 18;
@@ -54,6 +61,12 @@ function parseInstallArgs(argv) {
         const n = parseInt(val, 10);
         if (Number.isNaN(n)) throw new Error(`Invalid number for ${arg}: ${val}`);
         explicit[key] = n;
+      } else if (Object.hasOwn(CHOICES, key)) {
+        const low = val.toLowerCase();
+        if (!CHOICES[key].includes(low)) {
+          throw new Error(`Invalid value for ${arg}: ${val} (use ${CHOICES[key].join('|')})`);
+        }
+        explicit[key] = low;
       } else {
         explicit[key] = val;
       }
@@ -105,6 +118,23 @@ function parseLegacyCommand(cmd) {
   return out;
 }
 
+// Reads the options out of a previous Node status line command and returns the
+// ones worth keeping: every value that differs from DEFAULTS, plus the
+// alignment (a missing --align means left, while a fresh install defaults to
+// right). The leading `node` and the script path are skipped.
+function parseNodeCommand(cmd) {
+  const tokens = [];
+  const re = /"([^"]*)"|(\S+)/g;
+  let m;
+  while ((m = re.exec(String(cmd))) !== null) tokens.push(m[1] !== undefined ? m[1] : m[2]);
+  const parsed = parseArgs(tokens.slice(2));
+  const out = { align: parsed.align };
+  for (const [key, val] of Object.entries(parsed)) {
+    if (key !== 'refresh' && val !== DEFAULTS[key]) out[key] = val;
+  }
+  return out;
+}
+
 // Emits `node "<script>"` plus every option that differs from DEFAULTS, in the
 // order of the FLAGS table. `--refresh` is never emitted. Strings are bare when
 // they are plain words and double quoted otherwise, numbers are bare.
@@ -135,6 +165,8 @@ function buildCommand(scriptPath, opts) {
 // Throws before anything is written when the file is not a valid JSON object.
 function loadSettings(settingsPath) {
   if (!fs.existsSync(settingsPath)) return {};
+  // An empty or whitespace-only file counts as {}, like the old installer did.
+  if (fs.readFileSync(settingsPath, 'utf8').replace(/^\uFEFF/, '').trim() === '') return {};
   const cfg = readJson(settingsPath);
   if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
     throw new Error(`settings.json is not valid JSON: ${settingsPath}`);
@@ -166,7 +198,13 @@ function install(explicit, env = process.env, repoDir = __dirname) {
 
   const old = cfg.statusLine && typeof cfg.statusLine === 'object' ? cfg.statusLine : null;
   const previous = old && typeof old.command === 'string' ? old.command : null;
-  const carried = previous && previous.includes('statusline.ps1') ? parseLegacyCommand(previous) : {};
+  let carried = {};
+  if (previous && previous.includes('statusline.ps1')) {
+    // The old installer wrote -Align only for right, and the script defaulted to left.
+    carried = { align: 'left', ...parseLegacyCommand(previous) };
+  } else if (previous && previous.replace(/\\/g, '/').includes('quota-line/statusline.js')) {
+    carried = parseNodeCommand(previous);
+  }
 
   const targetDir = path.join(dir, 'quota-line');
   const scriptPath = path.join(targetDir, 'statusline.js');
@@ -237,7 +275,7 @@ function cli(argv, env = process.env) {
 }
 
 module.exports = {
-  checkNode, parseInstallArgs, parseLegacyCommand, buildCommand, install, uninstall,
+  checkNode, parseInstallArgs, parseLegacyCommand, parseNodeCommand, buildCommand, install, uninstall,
 };
 
 if (require.main === module) {

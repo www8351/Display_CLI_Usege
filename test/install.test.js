@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { DEFAULTS, readJson } = require('../statusline.js');
 const {
-  checkNode, parseInstallArgs, parseLegacyCommand, buildCommand, install, uninstall,
+  checkNode, parseInstallArgs, parseLegacyCommand, parseNodeCommand, buildCommand, install, uninstall,
 } = require('../install.js');
 
 const repoDir = path.join(__dirname, '..');
@@ -172,4 +172,80 @@ test('CLI installs, reports, and exits 1 on invalid settings', () => {
   r = run([]);
   assert.equal(r.status, 1);
   assert.ok(/settings\.json/.test(r.stderr) && !/\n\s+at /.test(r.stderr));
+});
+
+const LEGACY_LEFT = LEGACY.replace(' -Align Right', '');
+const sl = () => readJson(path.join(tmp, 'settings.json')).statusLine.command;
+const withCommand = (command) => write('settings.json', JSON.stringify({ statusLine: { type: 'command', command } }));
+
+test('legacy command without -Align migrates to left (no --align flag)', () => {
+  withCommand(LEGACY_LEFT);
+  const r = install({}, env, repoDir);
+  assert.ok(!r.command.includes('--align'));
+  assert.ok(r.command.includes('--model-key opus'));
+});
+
+test('explicit --align right wins over a legacy left install', () => {
+  withCommand(LEGACY_LEFT);
+  assert.ok(install({ align: 'right' }, env, repoDir).command.includes('--align right'));
+});
+
+test('parseNodeCommand reads quoted values and skips node and the script path', () => {
+  assert.deepEqual(
+    parseNodeCommand('node "C:/Users/First Last/.claude/quota-line/statusline.js" --model-label "My Model" --bar-width 16 --align right'),
+    { align: 'right', modelLabel: 'My Model', barWidth: 16 });
+});
+
+test('reinstall keeps the options of the previous Node command', () => {
+  withCommand('node "C:/x/.claude/quota-line/statusline.js" --model-key opus --bar-width 16 --align right');
+  const r = install({}, env, repoDir);
+  assert.ok(r.command.includes('--model-key opus') && r.command.includes('--bar-width 16'));
+  assert.ok(r.command.includes('--align right'));
+  assert.equal(sl(), r.command);
+});
+
+test('reinstall accepts backslash paths in the previous command', () => {
+  withCommand('node "C:\\x\\.claude\\quota-line\\statusline.js" --model-key opus');
+  assert.ok(install({}, env, repoDir).command.includes('--model-key opus'));
+});
+
+test('explicit flags win over the previous Node command', () => {
+  withCommand('node "C:/x/.claude/quota-line/statusline.js" --model-key opus --bar-width 16 --align right');
+  const r = install({ barWidth: 20 }, env, repoDir);
+  assert.ok(r.command.includes('--bar-width 20') && !r.command.includes('--bar-width 16'));
+  assert.ok(r.command.includes('--model-key opus'));
+});
+
+test('previous Node command without --align keeps left', () => {
+  withCommand('node "C:/x/.claude/quota-line/statusline.js" --model-key opus');
+  const r = install({}, env, repoDir);
+  assert.ok(!r.command.includes('--align'));
+  assert.ok(r.command.includes('--model-key opus'));
+});
+
+test('parseInstallArgs lowercases and validates align, theme and icons', () => {
+  assert.deepEqual(parseInstallArgs(['--align', 'Right', '--theme', 'MONO', '--icons', 'Nerd']).explicit,
+    { align: 'right', theme: 'mono', icons: 'nerd' });
+  assert.throws(() => parseInstallArgs(['--align', 'center']), /--align.*left\|right/);
+  assert.throws(() => parseInstallArgs(['--theme', 'neon']), /--theme.*default\|minimal\|mono/);
+  assert.throws(() => parseInstallArgs(['--icons', 'emoji']), /--icons.*unicode\|nerd\|none/);
+});
+
+test('CLI exits 1 with a one line error for an unknown option value', () => {
+  const r = spawnSync(process.execPath, [path.join(repoDir, 'install.js'), '--theme', 'neon'], { env, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.ok(/^Error: Invalid value for --theme: neon/m.test(r.stderr));
+  assert.equal(r.stderr.trim().split('\n').length, 1);
+  assert.ok(!fs.existsSync(path.join(tmp, 'settings.json')));
+});
+
+test('empty or whitespace-only settings.json is treated as {} and backed up', () => {
+  for (const text of ['', ' \n\t ', '\uFEFF']) {
+    for (const f of fs.readdirSync(tmp)) fs.rmSync(path.join(tmp, f), { recursive: true, force: true });
+    write('settings.json', text);
+    install({}, env, repoDir);
+    assert.deepEqual(Object.keys(readJson(path.join(tmp, 'settings.json'))), ['statusLine']);
+    assert.equal(baks().length, 1);
+    assert.equal(fs.readFileSync(path.join(tmp, baks()[0]), 'utf8'), text);
+  }
 });
