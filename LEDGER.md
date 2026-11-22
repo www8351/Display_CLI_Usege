@@ -20,6 +20,8 @@ Status: OPEN
 
 ## ACTIONS
 
+2026-11-23 | Installed the Node version from feat/node-rewrite on the user's machine at the user's request. Legacy PowerShell statusLine replaced, flags carried (only --align right differs from defaults). Backup settings.json.bak-20261123-001618. Smoke render of the installed script with the real cache shows all segments, including the Fable bucket. Live width check in a running session still pending.
+
 2026-11-22 | Final whole-branch review: ready "with fixes". Fix wave: legacy left-aligned installs stay left, reinstall keeps current Node flags, option values lowercased and validated, empty settings.json accepted, refresh child runs from the temp dir with an error handler, test no longer spawns a real refresh (macOS Keychain risk), README gained Update section and Hebrew cleanup. 99 tests pass.
 
 2026-11-22 | Built the Node.js rewrite on branch feat/node-rewrite, tasks 2 to 9 of the plan, each reviewed. statusline.js (render, data, git branch, cache and detached refresh, adaptive layout, entry point), install.js (cross-platform installer with legacy migration), test suite, CI workflow, README rewrite, PowerShell files moved to legacy/powershell/. Task 1 (width spike) skipped by the user. Review caught and fixed: argv prototype-key crash, cache backoff defeated by stale marker, console probe that created a CONOUT$ file in the cwd on Windows, right alignment breaking bar columns. Closes the old statusline.ps1 alignment issue (legacy code frozen).
